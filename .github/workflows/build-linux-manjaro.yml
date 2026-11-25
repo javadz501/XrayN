@@ -17,81 +17,74 @@ permissions:
 
 jobs:
   build-linux:
-    name: Build Arch package and AppImage (x86_64)
+    name: Build pacman package and AppImage (x86_64)
     runs-on: ubuntu-latest
-    container:
-      image: archlinux:base-devel
     steps:
       - name: Checkout source
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
         with:
           submodules: recursive
           fetch-depth: 0
 
-      - name: Prepare isolated Arch build environment
+      - name: Build in an isolated Arch Linux container
         shell: bash
         run: |
           set -euo pipefail
-          pacman -Syu --noconfirm
-          pacman -S --noconfirm --needed \
-            git curl jq rsync unzip tar wget file desktop-file-utils xdg-utils \
-            fakeroot python openssl dotnet-sdk-10.0 libarchive \
-            libx11 libice libsm libxext libxrender libxcb libxi libxrandr \
-            libxcursor libxinerama libxkbcommon mesa fontconfig freetype2 \
-            icu cairo pango
-
-      - name: Validate packaging script
-        shell: bash
-        run: |
-          set -euo pipefail
-          bash -n package-arch.sh
-          dotnet --version
-
-      - name: Build native pacman package
-        shell: bash
-        run: |
-          set -euo pipefail
-          chmod 755 package-arch.sh
-          ./package-arch.sh --buildfrom 3 --netcore --with-core both
-          package="$(find "$HOME/archbuild" -maxdepth 1 -type f -name 'xrayn-bin-*.pkg.tar.zst' -print -quit)"
-          test -n "$package"
           mkdir -p dist
-          cp "$package" dist/XrayN-linux-x86_64.pkg.tar.zst
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:/src" \
+            -w /src \
+            archlinux:base-devel \
+            bash -lc '
+              set -euo pipefail
+              pacman -Syu --noconfirm
+              pacman -S --noconfirm --needed \
+                git curl jq rsync unzip tar wget file desktop-file-utils xdg-utils \
+                fakeroot python openssl dotnet-sdk-10.0 libarchive \
+                libx11 libice libsm libxext libxrender libxcb libxi libxrandr \
+                libxcursor libxinerama libxkbcommon mesa fontconfig freetype2 \
+                icu cairo pango
 
-      - name: Assemble AppImage
-        shell: bash
-        run: |
-          set -euo pipefail
-          appdir="$RUNNER_TEMP/XrayN.AppDir"
-          mkdir -p "$appdir"
-          bsdtar -xf dist/XrayN-linux-x86_64.pkg.tar.zst -C "$appdir"
+              bash -n package-arch.sh
+              dotnet --version
+              chmod 755 package-arch.sh
+              ./package-arch.sh --buildfrom 3 --netcore --with-core both
 
-          cat > "$appdir/AppRun" <<'APP_RUN'
-          #!/usr/bin/env bash
-          set -euo pipefail
-          HERE="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
-          export APPDIR="$HERE"
-          export PATH="$APPDIR/usr/bin:$PATH"
-          exec "$APPDIR/usr/bin/xrayn" "$@"
-          APP_RUN
-          chmod 755 "$appdir/AppRun"
+              package="$(find /root/archbuild -maxdepth 1 -type f -name "xrayn-bin-*.pkg.tar.zst" -print -quit)"
+              test -n "$package"
+              cp "$package" /src/dist/XrayN-linux-x86_64.pkg.tar.zst
 
-          desktop_file="$appdir/usr/share/applications/xrayn.desktop"
-          icon_file="$appdir/usr/share/icons/hicolor/256x256/apps/xrayn.png"
-          if [[ -f "$desktop_file" ]]; then
-            sed -i 's/^Exec=.*/Exec=AppRun/' "$desktop_file"
-            cp "$desktop_file" "$appdir/xrayn.desktop"
-          fi
-          if [[ -f "$icon_file" ]]; then
-            cp "$icon_file" "$appdir/xrayn.png"
-            ln -sf xrayn.png "$appdir/.DirIcon"
-          fi
+              appdir=/tmp/XrayN.AppDir
+              mkdir -p "$appdir"
+              bsdtar -xf /src/dist/XrayN-linux-x86_64.pkg.tar.zst -C "$appdir"
 
-          curl -fL \
-            https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage \
-            -o "$RUNNER_TEMP/appimagetool"
-          chmod 755 "$RUNNER_TEMP/appimagetool"
-          APPIMAGE_EXTRACT_AND_RUN=1 "$RUNNER_TEMP/appimagetool" "$appdir" dist/XrayN-linux-x86_64.AppImage
+              cat > "$appdir/AppRun" <<'"'"'APP_RUN'"'"'
+              #!/usr/bin/env bash
+              set -euo pipefail
+              HERE="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+              export APPDIR="$HERE"
+              export PATH="$APPDIR/usr/bin:$PATH"
+              exec "$APPDIR/usr/bin/xrayn" "$@"
+              APP_RUN
+              chmod 755 "$appdir/AppRun"
+
+              desktop_file="$appdir/usr/share/applications/xrayn.desktop"
+              icon_file="$appdir/usr/share/icons/hicolor/256x256/apps/xrayn.png"
+              if [[ -f "$desktop_file" ]]; then
+                sed -i "s/^Exec=.*/Exec=AppRun/" "$desktop_file"
+                cp "$desktop_file" "$appdir/xrayn.desktop"
+              fi
+              if [[ -f "$icon_file" ]]; then
+                cp "$icon_file" "$appdir/xrayn.png"
+                ln -sf xrayn.png "$appdir/.DirIcon"
+              fi
+
+              curl -fL \
+                https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage \
+                -o /tmp/appimagetool
+              chmod 755 /tmp/appimagetool
+              APPIMAGE_EXTRACT_AND_RUN=1 /tmp/appimagetool "$appdir" /src/dist/XrayN-linux-x86_64.AppImage
+            '
 
       - name: Generate checksums
         shell: bash
@@ -109,7 +102,7 @@ jobs:
             Linux x86_64 packages for Manjaro and Arch Linux.
 
             Commit: ${{ github.sha }}
-          prerelease: ${{ github.event.inputs.release_tag == '' }}
+          prerelease: ${{ github.event_name == 'push' || github.event.inputs.release_tag == '' }}
           make_latest: false
           overwrite_files: true
           fail_on_unmatched_files: true
