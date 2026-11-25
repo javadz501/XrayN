@@ -53,7 +53,7 @@ jobs:
               printf '%s\n' \
                 "#!/usr/bin/env bash" \
                 "set -euo pipefail" \
-                "HERE=\$(dirname \"\$(readlink -f \"\$\{BASH_SOURCE[0]\}\")\")" \
+                "HERE=\$(dirname \"\$(readlink -f \"\${BASH_SOURCE[0]}\")\")" \
                 "export APPDIR=\"\$HERE\"" \
                 "export PATH=\"\$APPDIR/usr/bin:\$PATH\"" \
                 "exec \"\$APPDIR/usr/bin/xrayn\" \"\$@\"" \
