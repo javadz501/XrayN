@@ -40,6 +40,13 @@ jobs:
             libxcursor libxinerama libxkbcommon mesa fontconfig freetype2 \
             icu cairo pango
 
+      - name: Validate packaging script
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n package-arch.sh
+          dotnet --version
+
       - name: Build native pacman package
         shell: bash
         run: |
@@ -96,13 +103,13 @@ jobs:
       - name: Publish Linux packages directly to GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ inputs.release_tag || format('continuous-linux-{0}', github.run_number) }}
-          name: XrayN Linux ${{ inputs.release_tag || format('CI #{0}', github.run_number) }}
+          tag_name: ${{ github.event.inputs.release_tag || format('continuous-linux-{0}', github.run_number) }}
+          name: XrayN Linux ${{ github.event.inputs.release_tag || format('CI #{0}', github.run_number) }}
           body: |
             Linux x86_64 packages for Manjaro and Arch Linux.
 
             Commit: ${{ github.sha }}
-          prerelease: ${{ inputs.release_tag == '' }}
+          prerelease: ${{ github.event.inputs.release_tag == '' }}
           make_latest: false
           overwrite_files: true
           fail_on_unmatched_files: true

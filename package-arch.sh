@@ -526,7 +526,6 @@ depends=('bash' 'coreutils' 'desktop-file-utils' 'xdg-utils'
          'libx11' 'libice' 'libsm')
 options=('!strip' '!debug' '!emptydirs')
 # the package installs an isolated /opt/xrayn tree and the /usr/bin/xrayn launcher
-# and xrayn.desktop
 provides=('xrayn')
 conflicts=('xrayn')
 
