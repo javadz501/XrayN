@@ -70,8 +70,14 @@ jobs:
           chmod 755 "$appdir/AppRun"
 
           desktop_file="$appdir/usr/share/applications/xrayn.desktop"
+          icon_file="$appdir/usr/share/icons/hicolor/256x256/apps/xrayn.png"
           if [[ -f "$desktop_file" ]]; then
             sed -i 's/^Exec=.*/Exec=AppRun/' "$desktop_file"
+            cp "$desktop_file" "$appdir/xrayn.desktop"
+          fi
+          if [[ -f "$icon_file" ]]; then
+            cp "$icon_file" "$appdir/xrayn.png"
+            ln -sf xrayn.png "$appdir/.DirIcon"
           fi
 
           curl -fL \

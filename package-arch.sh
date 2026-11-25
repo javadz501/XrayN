@@ -22,8 +22,7 @@ BUILD_FROM=""
 XRAY_VER="${XRAY_VER:-}"
 SING_VER="${SING_VER:-}"
 
-# Not the .deb's v2rayn: the AUR's v2rayn is upstream v2rayN, which AUR helpers would offer as an update to a
-# package of that name (see provides/conflicts in write_pkgbuild).
+# XrayN is installed independently from upstream v2rayN under /opt/xrayn with its own launcher.
 PKGNAME="xrayn-bin"
 PROJECT_HINT="v2rayN.Desktop/v2rayN.Desktop.csproj"
 OUTPUT_DIR="${HOME}/archbuild"
@@ -210,7 +209,7 @@ apply_channel_or_keep() {
 
   if [[ "$ch" == "keep" ]]; then
     echo "[*] Keep current repository state (no checkout)."
-    VERSION="$(sed -n 's/.*<Version>\\([^<]*\\)<\\/Version>.*/\\1/p' "$SCRIPT_DIR/v2rayN/Directory.Build.props" | head -n1)"
+    VERSION="$(sed -n 's/.*<Version>\([^<]*\)<\/Version>.*/\1/p' "$SCRIPT_DIR/v2rayN/Directory.Build.props" | head -n1)"
     VERSION="${VERSION:-0.0.0}"
     VERSION="${VERSION#v}"
     return 0
@@ -526,8 +525,8 @@ depends=('bash' 'coreutils' 'desktop-file-utils' 'xdg-utils'
          'glibc' 'fontconfig' 'freetype2' 'icu' 'openssl' 'cairo' 'pango' 'mesa'
          'libx11' 'libice' 'libsm')
 options=('!strip' '!debug' '!emptydirs')
-# the AUR's xrayn is a source build of XrayN, and its v2rayn (upstream v2rayN) installs the same /usr/bin/v2rayn
-# and xrayn.desktop: pacman replaces either rather than installing both
+# the package installs an isolated /opt/xrayn tree and the /usr/bin/xrayn launcher
+# and xrayn.desktop
 provides=('xrayn')
 conflicts=('xrayn')
 
@@ -579,7 +578,7 @@ package_binary() {
 
   project_dir="$(cd "$(dirname "$PROJECT")" && pwd)"
   icon_candidate="$project_dir/v2rayN.png"
-  [[ -f "$icon_candidate" ]] && cp "$icon_candidate" "$stage/usr/share/icons/hicolor/256x256/apps/v2rayn.png" || true
+  [[ -f "$icon_candidate" ]] && cp "$icon_candidate" "$stage/usr/share/icons/hicolor/256x256/apps/xrayn.png" || true
 
   stage_runtime_assets "$stage/opt/xrayn"
   write_launcher_file "$stage"
