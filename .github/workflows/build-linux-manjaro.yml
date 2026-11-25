@@ -37,6 +37,8 @@ jobs:
                 libxcursor libxinerama libxkbcommon mesa fontconfig freetype2 \
                 icu cairo pango
 
+              git config --global --add safe.directory /src
+              git -C /src rev-parse --show-toplevel
               bash -n package-arch.sh
               dotnet --version
               chmod 755 package-arch.sh
