@@ -4,14 +4,6 @@ on:
   push:
     branches:
       - linux/manjaro
-  workflow_dispatch:
-    inputs:
-      release_tag:
-        description: "Optional stable release tag (for example 8.0.1-XN1). Leave empty for a CI prerelease."
-        required: false
-        type: string
-        default: ""
-
 permissions:
   contents: write
 
@@ -96,13 +88,13 @@ jobs:
       - name: Publish Linux packages directly to GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event.inputs.release_tag || format('continuous-linux-{0}', github.run_number) }}
-          name: XrayN Linux ${{ github.event.inputs.release_tag || format('CI #{0}', github.run_number) }}
+          tag_name: continuous-linux-${{ github.run_number }}
+          name: XrayN Linux Build ${{ github.run_number }}
           body: |
             Linux x86_64 packages for Manjaro and Arch Linux.
 
             Commit: ${{ github.sha }}
-          prerelease: ${{ github.event_name == 'push' || github.event.inputs.release_tag == '' }}
+          prerelease: true
           make_latest: false
           overwrite_files: true
           fail_on_unmatched_files: true
