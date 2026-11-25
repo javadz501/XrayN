@@ -50,14 +50,14 @@ jobs:
               mkdir -p "$appdir"
               bsdtar -xf /src/dist/XrayN-linux-x86_64.pkg.tar.zst -C "$appdir"
 
-              cat > "$appdir/AppRun" <<'"'"'APP_RUN'"'"'
-              #!/usr/bin/env bash
-              set -euo pipefail
-              HERE="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
-              export APPDIR="$HERE"
-              export PATH="$APPDIR/usr/bin:$PATH"
-              exec "$APPDIR/usr/bin/xrayn" "$@"
-              APP_RUN
+              printf '%s\n' \
+                "#!/usr/bin/env bash" \
+                "set -euo pipefail" \
+                "HERE=\$(dirname \"\$(readlink -f \"\$\{BASH_SOURCE[0]\}\")\")" \
+                "export APPDIR=\"\$HERE\"" \
+                "export PATH=\"\$APPDIR/usr/bin:\$PATH\"" \
+                "exec \"\$APPDIR/usr/bin/xrayn\" \"\$@\"" \
+                > "$appdir/AppRun"
               chmod 755 "$appdir/AppRun"
 
               desktop_file="$appdir/usr/share/applications/xrayn.desktop"
