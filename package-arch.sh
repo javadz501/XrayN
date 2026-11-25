@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# PattN: builds a pacman package (.pkg.tar.zst) for Arch Linux and its derivatives (x86_64 only).
+# XrayN: builds a pacman package (.pkg.tar.zst) for Arch Linux and its derivatives (x86_64 only).
 #
 # It follows package-debian.sh step by step: publish the self-contained desktop build, stage the cores (the
 # patterniha/Xray-core fork, sing-box), the geo rules and the Aether core in bin/ (package-aether.sh), and install the
-# result under /opt/v2rayN with the same launcher, desktop entry and icon as the .deb. Only the last step differs:
+# result under /opt/xrayn with the same launcher, desktop entry and icon as the .deb. Only the last step differs:
 # a throw-away PKGBUILD wraps the staged tree and makepkg builds the package.
 #
 # Usage: ./package-arch.sh [version] [--buildfrom 1|2|3] [--netcore] [--with-core xray|sing-box|both]
 #                          [--xray-ver X] [--singbox-ver X] [--arch x64]
-# Output: ~/archbuild/pattn-bin-<pkgver>-1-x86_64.pkg.tar.zst   (pkgver is the version with "-" turned into ".")
+# Output: ~/archbuild/xrayn-bin-<pkgver>-1-x86_64.pkg.tar.zst   (pkgver is the version with "-" turned into ".")
 #
 # Needs an Arch-family system (pacman, makepkg). Run as a normal user with sudo, or as root (CI container): makepkg
 # refuses to run as root, so the packaging step then runs as a temporary user.
@@ -24,7 +24,7 @@ SING_VER="${SING_VER:-}"
 
 # Not the .deb's v2rayn: the AUR's v2rayn is upstream v2rayN, which AUR helpers would offer as an update to a
 # package of that name (see provides/conflicts in write_pkgbuild).
-PKGNAME="pattn-bin"
+PKGNAME="xrayn-bin"
 PROJECT_HINT="v2rayN.Desktop/v2rayN.Desktop.csproj"
 OUTPUT_DIR="${HOME}/archbuild"
 RID="linux-x64"
@@ -110,7 +110,7 @@ install_dependencies() {
 
   command -v pacman >/dev/null 2>&1 || die "pacman not found"
 
-  as_root pacman -Syu --noconfirm --needed \
+  as_root pacman -S --noconfirm --needed \
     base-devel git curl unzip tar jq rsync ca-certificates fakeroot file \
     desktop-file-utils xdg-utils wget python openssl dotnet-sdk-10.0
 
@@ -210,7 +210,8 @@ apply_channel_or_keep() {
 
   if [[ "$ch" == "keep" ]]; then
     echo "[*] Keep current repository state (no checkout)."
-    VERSION="$(git describe --tags --abbrev=0 2>/dev/null || echo '0.0.0+git')"
+    VERSION="$(sed -n 's/.*<Version>\\([^<]*\\)<\\/Version>.*/\\1/p' "$SCRIPT_DIR/v2rayN/Directory.Build.props" | head -n1)"
+    VERSION="${VERSION:-0.0.0}"
     VERSION="${VERSION#v}"
     return 0
   fi
@@ -262,7 +263,7 @@ download_xray() {
   mkdir -p "$outdir"
 
   if [[ -z "$ver" ]]; then
-    # PattN: resolve the latest tag from the release redirect (the anonymous GitHub API is rate-limited on CI runners)
+    # XrayN: resolve the latest tag from the release redirect (the anonymous GitHub API is rate-limited on CI runners)
     ver="$(curl -fsSLI -o /dev/null -w '%{url_effective}' https://github.com/patterniha/Xray-core/releases/latest | sed -E 's#.*/releases/tag/v##')" || true
     [[ "$ver" =~ ^[0-9] ]] || ver=""
   fi
@@ -428,9 +429,9 @@ stage_runtime_assets() {
 
   if [[ "$FORCE_NETCORE" -eq 0 ]]; then
     if populate_assets_zip_mode "$outroot"; then
-      # PattN: the core-bin bundle ships upstream Xray; replace it with patterniha/Xray-core
-      download_xray "$outroot/bin/xray" || { echo "[!] PattN: failed to fetch patterniha/Xray-core, aborting"; return 1; }
-      # PattN: replace bundled geo files with Chocolate4U + Iran rule-sets
+      # XrayN: the core-bin bundle ships upstream Xray; replace it with patterniha/Xray-core
+      download_xray "$outroot/bin/xray" || { echo "[!] XrayN: failed to fetch patterniha/Xray-core, aborting"; return 1; }
+      # XrayN: replace bundled geo files with Chocolate4U + Iran rule-sets
       download_geo_assets "$outroot" || echo "[!] Geo rules download failed (kept bundle defaults)"
       echo "[*] Using v2rayN bundle bin assets."
     else
@@ -442,9 +443,9 @@ stage_runtime_assets() {
     populate_assets_netcore_mode "$outroot"
   fi
 
-  # PattN: the Aether core in bin/aether and Psiphon's server list in bin (package-aether.sh); a failed checksum or
+  # XrayN: the Aether core in bin/aether and Psiphon's server list in bin (package-aether.sh); a failed checksum or
   # signature check fails the package, so a broken or foreign download never ships
-  bash "$SCRIPT_DIR/package-aether.sh" "linux-64" "$outroot/bin" || { echo "[!] PattN: failed to bundle patterniha/Aether and Psiphon's server list, aborting"; return 1; }
+  bash "$SCRIPT_DIR/package-aether.sh" "linux-64" "$outroot/bin" || { echo "[!] XrayN: failed to bundle patterniha/Aether and Psiphon's server list, aborting"; return 1; }
 }
 
 publish_binary() {
@@ -457,23 +458,27 @@ publish_binary() {
 write_launcher_file() {
   local stage="$1"
 
-  install -m 755 /dev/stdin "$stage/usr/bin/v2rayn" <<'EOF'
+  install -m 755 /dev/stdin "$stage/usr/bin/xrayn" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-DIR="/opt/v2rayN"
+if [[ -n "${APPDIR:-}" && -d "$APPDIR/opt/xrayn" ]]; then
+  DIR="$APPDIR/opt/xrayn"
+else
+  DIR="/opt/xrayn"
+fi
 cd "$DIR"
 
-if [[ -x "$DIR/PattN" ]]; then
-  exec "$DIR/PattN" "$@"
+if [[ -x "$DIR/XrayN" ]]; then
+  exec "$DIR/XrayN" "$@"
 fi
 
-for dll in PattN.dll; do
+for dll in XrayN.dll; do
   if [[ -f "$DIR/$dll" ]]; then
     exec /usr/bin/dotnet "$DIR/$dll" "$@"
   fi
 done
 
-echo "PattN launcher: no executable found in $DIR" >&2
+echo "XrayN launcher: no executable found in $DIR" >&2
 ls -l "$DIR" >&2 || true
 exit 1
 EOF
@@ -482,14 +487,14 @@ EOF
 write_desktop_file() {
   local stage="$1"
 
-  install -m 644 /dev/stdin "$stage/usr/share/applications/v2rayn.desktop" <<'EOF'
+  install -m 644 /dev/stdin "$stage/usr/share/applications/xrayn.desktop" <<'EOF'
 [Desktop Entry]
 Type=Application
-Name=PattN
-Comment=PattN for Arch Linux
-Exec=v2rayn
-Icon=v2rayn
-StartupWMClass=PattN
+Name=XrayN
+Comment=XrayN desktop client
+Exec=xrayn
+Icon=xrayn
+StartupWMClass=XrayN
 Terminal=false
 Categories=Network;
 EOF
@@ -511,9 +516,9 @@ write_pkgbuild() {
 
   cat >> "$build_dir/PKGBUILD" <<'EOF'
 pkgrel=1
-pkgdesc="PattN (Avalonia) GUI client for Linux, with the patterniha Xray-core fork, sing-box and Aether cores"
+pkgdesc="XrayN Avalonia desktop client with Xray, sing-box and Aether cores"
 arch=('x86_64')
-url="https://github.com/patterniha/PattN"
+url="https://github.com/2dust/v2rayN"
 license=('GPL-3.0-only')
 # the same runtime needs as the .deb and .rpm (fontconfig, freetype, ICU, OpenSSL, cairo, pango, GL), plus the X11
 # client libraries Avalonia loads at start-up
@@ -521,10 +526,10 @@ depends=('bash' 'coreutils' 'desktop-file-utils' 'xdg-utils'
          'glibc' 'fontconfig' 'freetype2' 'icu' 'openssl' 'cairo' 'pango' 'mesa'
          'libx11' 'libice' 'libsm')
 options=('!strip' '!debug' '!emptydirs')
-# the AUR's pattn is a source build of PattN, and its v2rayn (upstream v2rayN) installs the same /usr/bin/v2rayn
-# and v2rayn.desktop: pacman replaces either rather than installing both
-provides=('pattn')
-conflicts=('pattn' 'v2rayn')
+# the AUR's xrayn is a source build of XrayN, and its v2rayn (upstream v2rayN) installs the same /usr/bin/v2rayn
+# and xrayn.desktop: pacman replaces either rather than installing both
+provides=('xrayn')
+conflicts=('xrayn')
 
 package() {
     cp -a --no-preserve=ownership "${_stage}/." "${pkgdir}/"
@@ -539,9 +544,9 @@ run_makepkg() {
   mkdir -p "$build_dir/out"
 
   if [[ "$EUID" -eq 0 ]]; then
-    id -u pattnbuild >/dev/null 2>&1 || useradd -m -s /bin/bash pattnbuild
-    chown -R pattnbuild "$build_dir"
-    su pattnbuild -s /bin/bash -c "cd '$build_dir' && PKGDEST='$build_dir/out' makepkg -d -f --noconfirm"
+    id -u xraynbuild >/dev/null 2>&1 || useradd -m -s /bin/bash xraynbuild
+    chown -R xraynbuild "$build_dir"
+    su xraynbuild -s /bin/bash -c "cd '$build_dir' && PKGDEST='$build_dir/out' makepkg -d -f --noconfirm"
   else
     ( cd "$build_dir" && PKGDEST="$build_dir/out" makepkg -d -f --noconfirm )
   fi
@@ -569,32 +574,32 @@ package_binary() {
   stage="$workdir/stage"
   build_dir="$workdir/build"
 
-  mkdir -p "$stage/opt/v2rayN" "$stage/usr/bin" "$stage/usr/share/applications" "$stage/usr/share/icons/hicolor/256x256/apps" "$build_dir"
-  cp -a "$pubdir/." "$stage/opt/v2rayN/"
+  mkdir -p "$stage/opt/xrayn" "$stage/usr/bin" "$stage/usr/share/applications" "$stage/usr/share/icons/hicolor/256x256/apps" "$build_dir"
+  cp -a "$pubdir/." "$stage/opt/xrayn/"
 
   project_dir="$(cd "$(dirname "$PROJECT")" && pwd)"
   icon_candidate="$project_dir/v2rayN.png"
   [[ -f "$icon_candidate" ]] && cp "$icon_candidate" "$stage/usr/share/icons/hicolor/256x256/apps/v2rayn.png" || true
 
-  stage_runtime_assets "$stage/opt/v2rayN"
+  stage_runtime_assets "$stage/opt/xrayn"
   write_launcher_file "$stage"
   write_desktop_file "$stage"
 
-  find "$stage/opt/v2rayN" -type d -exec chmod 0755 {} +
-  find "$stage/opt/v2rayN" -type f -exec chmod 0644 {} +
-  [[ -f "$stage/opt/v2rayN/PattN" ]] && chmod 0755 "$stage/opt/v2rayN/PattN" || true
+  find "$stage/opt/xrayn" -type d -exec chmod 0755 {} +
+  find "$stage/opt/xrayn" -type f -exec chmod 0644 {} +
+  [[ -f "$stage/opt/xrayn/XrayN" ]] && chmod 0755 "$stage/opt/xrayn/XrayN" || true
 
   # Core binaries must be executable before installation: ordinary users cannot
   # chmod the root-owned files installed by pacman.
   for core in xray/xray sing_box/sing-box mihomo/mihomo; do
-    if [[ -f "$stage/opt/v2rayN/bin/$core" ]]; then
-      chmod 0755 "$stage/opt/v2rayN/bin/$core"
+    if [[ -f "$stage/opt/xrayn/bin/$core" ]]; then
+      chmod 0755 "$stage/opt/xrayn/bin/$core"
     fi
   done
-  # PattN: and so must the Aether core and the two programs it runs
+  # XrayN: and so must the Aether core and the two programs it runs
   for core in aether/aether aether/lyrebird aether/psiphon-tunnel-core; do
-    if [[ -f "$stage/opt/v2rayN/bin/$core" ]]; then
-      chmod 0755 "$stage/opt/v2rayN/bin/$core"
+    if [[ -f "$stage/opt/xrayn/bin/$core" ]]; then
+      chmod 0755 "$stage/opt/xrayn/bin/$core"
     fi
   done
 

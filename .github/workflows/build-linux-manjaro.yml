@@ -1,0 +1,105 @@
+name: Build XrayN for Manjaro and Arch Linux
+
+on:
+  push:
+    branches:
+      - linux/manjaro
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Optional stable release tag (for example 8.0.1-XN1). Leave empty for a CI prerelease."
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  build-linux:
+    name: Build Arch package and AppImage (x86_64)
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:base-devel
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Prepare isolated Arch build environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm --needed \
+            git curl jq rsync unzip tar wget file desktop-file-utils xdg-utils \
+            fakeroot python openssl dotnet-sdk-10.0 libarchive \
+            libx11 libice libsm libxext libxrender libxcb libxi libxrandr \
+            libxcursor libxinerama libxkbcommon mesa fontconfig freetype2 \
+            icu cairo pango
+
+      - name: Build native pacman package
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod 755 package-arch.sh
+          ./package-arch.sh --buildfrom 3 --netcore --with-core both
+          package="$(find "$HOME/archbuild" -maxdepth 1 -type f -name 'xrayn-bin-*.pkg.tar.zst' -print -quit)"
+          test -n "$package"
+          mkdir -p dist
+          cp "$package" dist/XrayN-linux-x86_64.pkg.tar.zst
+
+      - name: Assemble AppImage
+        shell: bash
+        run: |
+          set -euo pipefail
+          appdir="$RUNNER_TEMP/XrayN.AppDir"
+          mkdir -p "$appdir"
+          bsdtar -xf dist/XrayN-linux-x86_64.pkg.tar.zst -C "$appdir"
+
+          cat > "$appdir/AppRun" <<'APP_RUN'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          HERE="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+          export APPDIR="$HERE"
+          export PATH="$APPDIR/usr/bin:$PATH"
+          exec "$APPDIR/usr/bin/xrayn" "$@"
+          APP_RUN
+          chmod 755 "$appdir/AppRun"
+
+          desktop_file="$appdir/usr/share/applications/xrayn.desktop"
+          if [[ -f "$desktop_file" ]]; then
+            sed -i 's/^Exec=.*/Exec=AppRun/' "$desktop_file"
+          fi
+
+          curl -fL \
+            https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage \
+            -o "$RUNNER_TEMP/appimagetool"
+          chmod 755 "$RUNNER_TEMP/appimagetool"
+          APPIMAGE_EXTRACT_AND_RUN=1 "$RUNNER_TEMP/appimagetool" "$appdir" dist/XrayN-linux-x86_64.AppImage
+
+      - name: Generate checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum XrayN-linux-x86_64.pkg.tar.zst XrayN-linux-x86_64.AppImage > SHA256SUMS
+
+      - name: Publish Linux packages directly to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.release_tag || format('continuous-linux-{0}', github.run_number) }}
+          name: XrayN Linux ${{ inputs.release_tag || format('CI #{0}', github.run_number) }}
+          body: |
+            Linux x86_64 packages for Manjaro and Arch Linux.
+
+            Commit: ${{ github.sha }}
+          prerelease: ${{ inputs.release_tag == '' }}
+          make_latest: false
+          overwrite_files: true
+          fail_on_unmatched_files: true
+          files: dist/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,26 +1,26 @@
-# PattN
+# XrayN
 
-v2rayN fork for Iranians
+XrayN is a Linux-focused desktop client based on the v2rayN/Avalonia codebase, with Xray, sing-box and Aether runtime integration.
 
-**تغییرات v2rayN:**
+## Manjaro / Arch Linux
 
-* اضافه شدن cipherSuites و فینگرپرینت unsafe در تنظیمات و شیرلینک.
+Two x86_64 packages are provided:
 
-* اضافه شدن هسته‌ی aether
+- **Pacman package:** install with `sudo pacman -U XrayN-linux-x86_64.pkg.tar.zst`
+- **AppImage:** make executable with `chmod +x XrayN-linux-x86_64.AppImage`, then run it.
 
-**تغییرات Xray-core:**
+The pacman package installs the application under `/opt/xrayn`, registers the `xrayn` launcher and adds an application-menu entry.
 
-* امکان اتصال به کانفیگ‌های غیر رمزنگاری شده برای آدرس‌های عمومی در VLESS و TROJAN
+## Local build
 
+Run on Manjaro or Arch Linux with the .NET 10 SDK and `base-devel` installed:
 
-## حمایت
+```bash
+./package-arch.sh --buildfrom 3 --netcore --with-core both
+```
 
-اگر کارهای بنده باعث دسترسی شما به اینترنت آزاد شده است ممنون میشم حمایتی هم از اینجانب انجام دهید
+The script packages the current checkout and does not perform a full system upgrade.
 
-`USDT (BEP20)`: 0x76a768B53Ca77B43086946315f0BDF21156bF424
+## Licensing
 
-`USDT (TRC20)`: TU5gKvKqcXPn8itp1DouBCwcqGHMemBm8o
-
-`TON (TON)`: UQAc-mZB3y7uxWHKiMmq0ORZEYgycWDWZ4V1k73HsXvTJx-i
-
-@patterniha
+This project retains the upstream GPL license and third-party notices. See `LICENSE` and the files under `licenses/`.
